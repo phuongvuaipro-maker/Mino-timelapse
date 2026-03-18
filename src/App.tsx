@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { Play, Pause, Image as ImageIcon, Loader2, AlertCircle, Sparkles, Layers, Key, ChevronDown, Upload, Trash2, ImagePlus, ArrowRight, Download } from 'lucide-react';
+import { Play, Pause, Image as ImageIcon, Loader2, AlertCircle, Sparkles, Layers, Key, ChevronDown, Upload, Trash2, ImagePlus, ArrowRight, Download, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 declare global {
@@ -101,6 +101,7 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const totalImages = steps + 2;
 
@@ -392,6 +393,25 @@ export default function App() {
       const errMsg = err.message || "An error occurred during generation.";
       setError(errMsg);
       setState('error');
+    }
+  };
+
+  const downloadAllImages = async () => {
+    if (images.length === 0) return;
+    setIsDownloadingAll(true);
+    try {
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        const paddedIndex = String(i + 1).padStart(3, '0');
+        downloadImage(img.url, `timelapse-stage-${paddedIndex}.jpg`);
+        // Small delay to prevent browser from blocking multiple downloads
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    } catch (err) {
+      console.error("Failed to download images:", err);
+      setError("Failed to download all images.");
+    } finally {
+      setIsDownloadingAll(false);
     }
   };
 
@@ -984,6 +1004,22 @@ export default function App() {
             <div className="text-sm font-mono font-medium text-zinc-400 w-16 text-right shrink-0 bg-zinc-800/50 py-2 px-3 rounded-lg border border-zinc-700/50">
               {images.length > 0 ? `${currentIndex + 1}/${images.length}` : '0/0'}
             </div>
+
+            {state === 'done' && images.length > 0 && (
+              <button
+                onClick={downloadAllImages}
+                disabled={isDownloadingAll}
+                className="shrink-0 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white font-medium py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all active:scale-95 border border-indigo-400/20"
+                title="Download all images individually"
+              >
+                {isDownloadingAll ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )}
+                <span className="hidden sm:inline">{isDownloadingAll ? 'Downloading...' : 'Download All'}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
