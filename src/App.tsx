@@ -303,10 +303,10 @@ export default function App() {
         const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
         const currentStage = stages[i];
 
-        const config: any = { imageConfig: { aspectRatio } };
-        if (selectedModel !== 'gemini-2.5-flash-image') {
-          config.imageConfig.imageSize = imageSize;
-        }
+        const config: any = {};
+        
+        // When doing image-to-image, do not pass aspectRatio or imageSize
+        // to prevent the model from cropping or resizing the input image.
 
         const contents = {
           parts: [
