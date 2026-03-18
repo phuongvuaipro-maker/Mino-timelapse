@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { Play, Pause, Image as ImageIcon, Loader2, AlertCircle, Sparkles, Layers, Key, ChevronDown, Upload, Trash2, ImagePlus, ArrowRight, Download, Archive } from 'lucide-react';
+import { Play, Pause, Image as ImageIcon, Loader2, AlertCircle, Sparkles, Layers, Key, ChevronDown, Upload, Trash2, ImagePlus, ArrowRight, Download, Archive, Clock, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 declare global {
@@ -19,6 +19,14 @@ interface GeneratedImage {
   url: string;
   prompt: string;
   stage: string;
+}
+
+interface HistoryItem {
+  id: string;
+  type: 'base' | 'timelapse';
+  timestamp: number;
+  prompt: string;
+  images: GeneratedImage[];
 }
 
 function getTimelapsePrompts(targetPrompt: string, n: number, hasFinalImage: boolean): { stage: string, instruction: string }[] {
@@ -102,6 +110,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const totalImages = steps + 2;
 
@@ -266,6 +277,15 @@ export default function App() {
 
       const results = await Promise.all(generatePromises);
       setBaseResults(results);
+      
+      const newHistoryItem: HistoryItem = {
+        id: Date.now().toString(),
+        type: 'base',
+        timestamp: Date.now(),
+        prompt: fullPrompt,
+        images: results.map(r => ({ url: r.url, prompt: fullPrompt, stage: 'Base Image' }))
+      };
+      setHistory(prev => [newHistoryItem, ...prev]);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "An error occurred.");
@@ -387,6 +407,15 @@ export default function App() {
         setCurrentIndex(newImages.length - 1);
       }
       
+      const newHistoryItem: HistoryItem = {
+        id: Date.now().toString(),
+        type: 'timelapse',
+        timestamp: Date.now(),
+        prompt: currentPrompt,
+        images: [...newImages]
+      };
+      setHistory(prev => [newHistoryItem, ...prev]);
+      
       setState('done');
     } catch (err: any) {
       console.error(err);
@@ -412,6 +441,18 @@ export default function App() {
       setError("Failed to download all images.");
     } finally {
       setIsDownloadingAll(false);
+    }
+  };
+
+  const restoreHistory = (item: HistoryItem) => {
+    if (item.type === 'base') {
+      setBaseResults(item.images);
+      setActiveTab('base');
+    } else {
+      setImages(item.images);
+      setActiveTab('timelapse');
+      setCurrentIndex(0);
+      setState('done');
     }
   };
 
@@ -812,6 +853,60 @@ export default function App() {
 
       {/* Right Panel */}
       <div className="flex-1 flex flex-col h-screen relative overflow-hidden bg-zinc-950">
+        {/* History Toggle Button */}
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="absolute top-6 right-6 z-40 bg-zinc-900/80 hover:bg-zinc-800 backdrop-blur-md p-2.5 rounded-xl border border-white/10 text-zinc-300 hover:text-white shadow-xl transition-colors"
+          title="History"
+        >
+          <Clock size={20} />
+        </button>
+
+        {/* History Drawer */}
+        <AnimatePresence>
+          {showHistory && (
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute top-0 right-0 bottom-0 w-80 bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-800 z-50 flex flex-col shadow-2xl"
+            >
+              <div className="p-5 border-b border-zinc-800 flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2 text-zinc-100"><Clock size={18} className="text-indigo-400"/> History</h3>
+                <button onClick={() => setShowHistory(false)} className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 rounded-lg transition-colors"><X size={18}/></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                {history.length === 0 ? (
+                  <div className="text-zinc-500 text-sm text-center mt-10">No history yet</div>
+                ) : (
+                  history.map(item => (
+                    <div 
+                      key={item.id} 
+                      onClick={() => restoreHistory(item)}
+                      className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden cursor-pointer hover:border-indigo-500/50 transition-colors group shadow-lg"
+                    >
+                      <div className="aspect-video relative bg-zinc-900">
+                        <img src={item.images[0]?.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-medium uppercase tracking-wider text-zinc-300">
+                          {item.type}
+                        </div>
+                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-medium text-zinc-300">
+                          {item.images.length} img
+                        </div>
+                      </div>
+                      <div className="p-3">
+                        <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">{item.prompt}</p>
+                        <p className="text-[10px] text-zinc-500 mt-2">{new Date(item.timestamp).toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Viewer Area */}
         <div className="flex-1 flex items-center justify-center p-8 relative">
           {/* Background subtle gradient */}
