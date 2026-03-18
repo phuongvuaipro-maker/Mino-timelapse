@@ -30,14 +30,30 @@ function getTimelapsePrompts(targetPrompt: string, n: number, hasFinalImage: boo
     const percent = Math.round(i * stepSize);
     stages.push({
       stage: `Stage ${i} (${percent}%)`,
-      instruction: `Edit the image to show the ${percent}% completed stage of: ${safePrompt}. Show partial progression, construction, or formation. Keep the original background, composition, and unchanged parts exactly the same.`
+      instruction: `CRITICAL INSTRUCTION: You are an image editor creating a timelapse sequence. Your task is to apply EXACTLY ${percent}% of the target transformation to the provided image.
+TARGET TRANSFORMATION: "${safePrompt}"
+CURRENT PROGRESS: ${percent}%
+
+RULES:
+1. PRESERVE the original image as much as possible. DO NOT change the subject's identity, pose, background, or lighting UNLESS it is explicitly part of the TARGET TRANSFORMATION (e.g., if the prompt asks for "day to night", you MUST change the lighting/sky).
+2. At ${percent}%, the transformation should look partially complete. For example:
+   - If adding armor/clothes: Show the armor forming, glowing, or partially covering the body.
+   - If building something: Show the scaffolding, framework, or partial structure.
+   - If changing time/weather: Show the lighting/sky transitioning proportionally (e.g., sunset for 50% day-to-night).
+3. Keep everything else that is NOT part of the transformation EXACTLY the same as the input image. Blend the new elements naturally.`
     });
   }
   
   if (!hasFinalImage) {
     stages.push({
       stage: "Final Result",
-      instruction: `Edit the image to show the fully completed, highly detailed final version of: ${safePrompt}. Perfectly integrate it into the environment while keeping the original background exactly the same.`
+      instruction: `CRITICAL INSTRUCTION: You are an image editor creating the final frame of a timelapse sequence. Your task is to apply 100% of the target transformation to the provided image.
+TARGET TRANSFORMATION: "${safePrompt}"
+
+RULES:
+1. PRESERVE the original image as much as possible. DO NOT change the subject's identity, pose, background, or lighting UNLESS it is explicitly part of the TARGET TRANSFORMATION.
+2. Apply the FULL transformation. The target concept should be completely realized and highly detailed.
+3. Keep all other elements that are NOT part of the transformation EXACTLY the same as the input image. Perfectly integrate the new elements.`
     });
   }
   
