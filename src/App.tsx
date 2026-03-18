@@ -274,8 +274,15 @@ export default function App() {
   };
 
   const generateSequence = async () => {
-    if (!targetPrompt.trim() || !initialImage) {
-      setError("Please provide a starting image and a target prompt.");
+    let currentPrompt = targetPrompt.trim();
+
+    if (!initialImage) {
+      setError("Please provide a starting image.");
+      return;
+    }
+    
+    if (!currentPrompt && !finalImage) {
+      setError("Please provide a target prompt or a final image to auto-detect the transformation.");
       return;
     }
     
@@ -285,7 +292,33 @@ export default function App() {
     setCurrentIndex(0);
     setIsPlaying(false);
 
-    const stages = getTimelapsePrompts(targetPrompt, steps, !!finalImage);
+    const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+
+    if (!currentPrompt && finalImage) {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-pro-preview',
+          contents: {
+            parts: [
+              { text: "Image 1 (Start):" },
+              { inlineData: { data: initialImage.data, mimeType: initialImage.mimeType } },
+              { text: "Image 2 (Final):" },
+              { inlineData: { data: finalImage.data, mimeType: finalImage.mimeType } },
+              { text: "Compare Image 1 and Image 2. Describe the exact transformation, additions, or changes happening to the main subject or environment. Write a concise, direct instruction for an image editor to recreate this change (e.g., 'Add metallic armor and large white feathered wings to the woman'). Do not describe what is the same, only what changes." }
+            ]
+          }
+        });
+        currentPrompt = response.text || "Apply the transformation seen in the final image";
+        setTargetPrompt(currentPrompt);
+      } catch (err) {
+        console.error("Failed to auto-detect prompt:", err);
+        setError("Failed to auto-detect transformation. Please enter a prompt manually.");
+        setState('idle');
+        return;
+      }
+    }
+
+    const stages = getTimelapsePrompts(currentPrompt, steps, !!finalImage);
     const newImages: GeneratedImage[] = [];
     
     let previousImageBase64 = initialImage.data;
@@ -300,7 +333,6 @@ export default function App() {
 
     try {
       for (let i = 0; i < stages.length; i++) {
-        const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
         const currentStage = stages[i];
 
         const config: any = {};
@@ -692,11 +724,16 @@ export default function App() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-zinc-300">Target Transformation</label>
+                  <label className="text-sm font-medium text-zinc-300 flex justify-between items-center">
+                    <span>Target Transformation</span>
+                    {finalImage && !targetPrompt.trim() && (
+                      <span className="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">Auto-detect</span>
+                    )}
+                  </label>
                   <textarea
                     value={targetPrompt}
                     onChange={(e) => setTargetPrompt(e.target.value)}
-                    placeholder="Describe the final result..."
+                    placeholder={finalImage ? "Leave empty to auto-detect from images, or describe the change manually..." : "Describe the final result..."}
                     className="w-full h-24 bg-zinc-950/50 border border-zinc-800 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 resize-none transition-all placeholder:text-zinc-600"
                   />
                 </div>
@@ -732,7 +769,7 @@ export default function App() {
 
                 <button
                   onClick={generateSequence}
-                  disabled={state === 'generating' || !targetPrompt.trim() || !hasKey || !initialImage}
+                  disabled={state === 'generating' || (!targetPrompt.trim() && !finalImage) || !hasKey || !initialImage}
                   className="w-full bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500 font-medium py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-white/5"
                 >
                   {state === 'generating' ? (
