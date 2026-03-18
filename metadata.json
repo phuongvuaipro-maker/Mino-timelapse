@@ -1,0 +1,5 @@
+{
+  "name": "Mino Timelapse",
+  "description": "Generate a step-by-step visual transformation sequence from sketch to final render.",
+  "requestFramePermissions": []
+}
