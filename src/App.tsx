@@ -78,8 +78,38 @@ function downloadImage(url: string, filename: string) {
 }
 
 export default function App() {
-  const [myApiKey, setMyApiKey] = useState('');
-  const hasKey = myApiKey.trim().length > 0;
+  const [isKeySelected, setIsKeySelected] = useState(false);
+  const [isCheckingKey, setIsCheckingKey] = useState(true);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio?.hasSelectedApiKey) {
+        try {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setIsKeySelected(hasKey);
+        } catch (err) {
+          console.error("Failed to check API key:", err);
+        }
+      }
+      setIsCheckingKey(false);
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio?.openSelectKey) {
+      try {
+        await window.aistudio.openSelectKey();
+        // Assume success to mitigate race condition
+        setIsKeySelected(true);
+      } catch (err: any) {
+        console.error("Failed to open select key dialog:", err);
+        if (err?.message?.includes("Requested entity was not found")) {
+          setIsKeySelected(false);
+        }
+      }
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<AppTab>('base');
   
@@ -188,7 +218,7 @@ export default function App() {
     setIsEnhancing(true);
     setError(null);
     try {
-     const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+     const ai = new GoogleGenAI({ apiKey: (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY || '' });
       const prompt = `You are an expert image generation prompt engineer. The user wants to generate an image of: "${basePrompt}". The desired style is: "${baseStyle}". Write a highly detailed, descriptive prompt (under 500 characters) that will yield a stunning image. Just return the prompt text, nothing else.`;
       
       const response = await ai.models.generateContent({
@@ -214,7 +244,7 @@ export default function App() {
     setBaseResults([]);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+      const ai = new GoogleGenAI({ apiKey: (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY || '' });
       
       let finalPrompt = basePrompt;
       if (baseStyle === 'Creative') {
@@ -313,7 +343,7 @@ export default function App() {
     setCurrentIndex(0);
     setIsPlaying(false);
 
-    const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+    const ai = new GoogleGenAI({ apiKey: (process.env as any).API_KEY || (process.env as any).GEMINI_API_KEY || '' });
 
     if (!currentPrompt && finalImage) {
       try {
@@ -463,6 +493,44 @@ export default function App() {
     setIsPlaying(!isPlaying);
   };
 
+  if (isCheckingKey) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-500" size={32} />
+      </div>
+    );
+  }
+
+  if (!isKeySelected) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-zinc-900/80 border border-zinc-800/60 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-6 mx-auto">
+            <Key className="text-white" size={24} />
+          </div>
+          <h2 className="text-2xl font-bold text-center mb-2">API Key Required</h2>
+          <p className="text-zinc-400 text-center mb-6 leading-relaxed">
+            Image generation models require a paid Google Cloud API key with billing enabled. The free tier does not support these models.
+          </p>
+          <div className="bg-zinc-950/50 rounded-xl p-4 mb-8 border border-zinc-800/50">
+            <p className="text-sm text-zinc-300 mb-2">
+              1. Go to the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline">Billing Documentation</a> to learn how to set up a paid project.
+            </p>
+            <p className="text-sm text-zinc-300">
+              2. Click the button below to select your API key.
+            </p>
+          </div>
+          <button
+            onClick={handleSelectKey}
+            className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+          >
+            Select API Key
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex font-sans">
       {/* Left Panel */}
@@ -475,28 +543,7 @@ export default function App() {
         </div>
 
         <div className="space-y-8 flex-1">
-          {/* API Configuration Section */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">API Configuration</h3>
-            <div className="bg-zinc-950/50 border border-zinc-800 rounded-xl p-4">
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <Key size={14} className="text-indigo-400" />
-                  Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  value={myApiKey}
-                  onChange={(e) => setMyApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-zinc-300 transition-all placeholder:text-zinc-600"
-                />
-                <p className="text-xs text-zinc-500">
-                  Your key is stored locally and never sent to our servers.
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* API Configuration Section Removed */}
 
           <div className="space-y-3">
             <label className="text-sm font-medium text-zinc-300">AI Model</label>
@@ -588,7 +635,7 @@ export default function App() {
                     <label className="text-sm font-medium text-zinc-300">Image Description</label>
                     <button
                       onClick={enhancePrompt}
-                      disabled={isEnhancing || !basePrompt.trim() || !hasKey}
+                      disabled={isEnhancing || !basePrompt.trim() || !isKeySelected}
                       className="text-xs flex items-center gap-1.5 text-indigo-400 hover:text-indigo-300 disabled:text-zinc-600 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-1 rounded-md"
                     >
                       {isEnhancing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
@@ -683,7 +730,7 @@ export default function App() {
 
                 <button
                   onClick={generateBaseImage}
-                  disabled={isGeneratingBase || !basePrompt.trim() || !hasKey}
+                  disabled={isGeneratingBase || !basePrompt.trim() || !isKeySelected}
                   className="w-full bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500 font-medium py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-white/5"
                 >
                   {isGeneratingBase ? (
@@ -830,7 +877,7 @@ export default function App() {
 
                 <button
                   onClick={generateSequence}
-                  disabled={state === 'generating' || (!targetPrompt.trim() && !finalImage) || !hasKey || !initialImage}
+                  disabled={state === 'generating' || (!targetPrompt.trim() && !finalImage) || !isKeySelected || !initialImage}
                   className="w-full bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-800 disabled:text-zinc-500 font-medium py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-white/5"
                 >
                   {state === 'generating' ? (
