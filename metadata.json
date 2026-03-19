@@ -1,5 +1,5 @@
 {
-  "name": "Mino Timelapse",
-  "description": "Generate a step-by-step visual transformation sequence from sketch to final render.",
+  "name": "Gemini Full-Stack Chat",
+  "description": "A secure React + Express full-stack application for interacting with Gemini API, ready for Vercel deployment.",
   "requestFramePermissions": []
 }

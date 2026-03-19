@@ -79,7 +79,23 @@ function downloadImage(url: string, filename: string) {
 
 export default function App() {
   const [myApiKey, setMyApiKey] = useState('');
-  const hasKey = myApiKey.trim().length > 0;
+  const [isAiStudio, setIsAiStudio] = useState(false);
+  const [hasStudioKey, setHasStudioKey] = useState(false);
+
+  useEffect(() => {
+    if (window.aistudio) {
+      setIsAiStudio(true);
+      window.aistudio.hasSelectedApiKey().then(setHasStudioKey);
+    }
+  }, []);
+
+  const getResolvedApiKey = () => {
+    let key = '';
+    try { key = key || (process as any).env.API_KEY; } catch(e) {}
+    try { key = key || (process as any).env.GEMINI_API_KEY; } catch(e) {}
+    try { key = key || (import.meta as any).env.VITE_GEMINI_API_KEY; } catch(e) {}
+    return key || myApiKey.trim();
+  };
 
   const [activeTab, setActiveTab] = useState<AppTab>('base');
   
@@ -101,6 +117,10 @@ export default function App() {
   const [finalImage, setFinalImage] = useState<{ data: string, mimeType: string, url: string } | null>(null);
   
   const [selectedModel, setSelectedModel] = useState('gemini-3.1-flash-image-preview');
+  
+  const isPaidModel = selectedModel === 'gemini-3.1-flash-image-preview' || selectedModel === 'gemini-3-pro-image-preview';
+  const hasKey = isAiStudio ? (!isPaidModel || hasStudioKey) : getResolvedApiKey().length > 0;
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const finalFileInputRef = useRef<HTMLInputElement>(null);
   const baseFileInputRef = useRef<HTMLInputElement>(null);
@@ -188,7 +208,8 @@ export default function App() {
     setIsEnhancing(true);
     setError(null);
     try {
-     const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+      const resolvedKey = getResolvedApiKey();
+      const ai = new GoogleGenAI(resolvedKey ? { apiKey: resolvedKey } : {});
       const prompt = `You are an expert image generation prompt engineer. The user wants to generate an image of: "${basePrompt}". The desired style is: "${baseStyle}". Write a highly detailed, descriptive prompt (under 500 characters) that will yield a stunning image. Just return the prompt text, nothing else.`;
       
       const response = await ai.models.generateContent({
@@ -214,7 +235,8 @@ export default function App() {
     setBaseResults([]);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+      const resolvedKey = getResolvedApiKey();
+      const ai = new GoogleGenAI(resolvedKey ? { apiKey: resolvedKey } : {});
       
       let finalPrompt = basePrompt;
       if (baseStyle === 'Creative') {
@@ -313,7 +335,8 @@ export default function App() {
     setCurrentIndex(0);
     setIsPlaying(false);
 
-    const ai = new GoogleGenAI({ apiKey: myApiKey.trim() });
+    const resolvedKey = getResolvedApiKey();
+    const ai = new GoogleGenAI(resolvedKey ? { apiKey: resolvedKey } : {});
 
     if (!currentPrompt && finalImage) {
       try {
@@ -479,22 +502,54 @@ export default function App() {
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">API Configuration</h3>
             <div className="bg-zinc-950/50 border border-zinc-800 rounded-xl p-4">
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <Key size={14} className="text-indigo-400" />
-                  Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  value={myApiKey}
-                  onChange={(e) => setMyApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-zinc-300 transition-all placeholder:text-zinc-600"
-                />
-                <p className="text-xs text-zinc-500">
-                  Your key is stored locally and never sent to our servers.
-                </p>
-              </div>
+              {isAiStudio ? (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+                    <Key size={14} className="text-indigo-400" />
+                    AI Studio Billing
+                  </label>
+                  {isPaidModel ? (
+                    hasStudioKey ? (
+                      <div className="text-sm text-emerald-400 flex items-center gap-2 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
+                        <Sparkles size={16} /> Paid API Key Selected
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (window.aistudio) {
+                            await window.aistudio.openSelectKey();
+                            setHasStudioKey(true);
+                          }
+                        }}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Key size={16} /> Select Paid API Key
+                      </button>
+                    )
+                  ) : (
+                    <div className="text-sm text-zinc-400 bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                      Using default free tier for Gemini 2.5 Flash.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+                    <Key size={14} className="text-indigo-400" />
+                    Gemini API Key (Vercel / Local)
+                  </label>
+                  <input
+                    type="password"
+                    value={myApiKey}
+                    onChange={(e) => setMyApiKey(e.target.value)}
+                    placeholder="Enter your API key..."
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-zinc-300 transition-all placeholder:text-zinc-600"
+                  />
+                  <p className="text-xs text-zinc-500">
+                    Required for Vercel. Alternatively, set <code>VITE_GEMINI_API_KEY</code> in Vercel environment variables.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
